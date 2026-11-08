@@ -97,6 +97,41 @@ function updateKeys() {
     });
 }
 
+
+function moveSelection(dr, dc) {
+    if (ended) return;
+
+    // If nothing is selected yet, start from the first empty cell.
+    if (!selected) {
+        for (let r = 0; r < SIZE; r++) {
+            for (let c = 0; c < SIZE; c++) {
+                if (board[r][c] === 0) {
+                    selected = { r, c };
+                    renderGrid();
+                    setStatus("Square selected. Enter a number from 1 to 5.");
+                    return;
+                }
+            }
+        }
+        return;
+    }
+
+    let r = selected.r + dr;
+    let c = selected.c + dc;
+
+    // Skip filled/given squares while moving in the chosen direction.
+    while (r >= 0 && r < SIZE && c >= 0 && c < SIZE) {
+        if (board[r][c] === 0) {
+            selected = { r, c };
+            renderGrid();
+            setStatus("Square selected. Enter a number from 1 to 5.");
+            return;
+        }
+        r += dr;
+        c += dc;
+    }
+}
+
 function updateMistakes() {
     dots.forEach((dot, i) => {
         dot.classList.toggle("used", i < mistakes);
@@ -133,6 +168,7 @@ function chooseNumber(number) {
     } else {
         mistakes++;
         updateMistakes();
+        resetTimer();
 
         const cell = grid.children[r * SIZE + c];
 
@@ -152,12 +188,18 @@ function chooseNumber(number) {
 }
 
 function updateTimer() {
-    timeText.textContent = timeLeft.toFixed(1) + "s";
+    const seconds = Math.max(0, timeLeft);
+    timeText.textContent = `${seconds.toFixed(1)}s`;
 
-    fill.style.width =
-        (timeLeft / TOTAL_TIME * 100) + "%";
+    const percent = (seconds / TOTAL_TIME) * 100;
+    fill.style.width = `${percent}%`;
+    fill.classList.toggle("low", seconds <= 5);
+}
 
-    fill.classList.toggle("low", timeLeft <= 15);
+function resetTimer() {
+    if (ended) return;
+    timeLeft = TOTAL_TIME;
+    updateTimer();
 }
 
 function finish(message, won = false) {
@@ -170,19 +212,17 @@ function finish(message, won = false) {
 
 function startTimer() {
     clearInterval(timer);
-
-    const start = Date.now();
+    timeLeft = TOTAL_TIME;
+    updateTimer();
 
     timer = setInterval(() => {
-        timeLeft = Math.max(
-            0,
-            TOTAL_TIME - (Date.now() - start) / 1000
-        );
+        if (ended) return;
 
+        timeLeft = Math.max(0, timeLeft - 0.1);
         updateTimer();
 
         if (timeLeft <= 0) {
-            finish("Time's up! Try again.");
+            finish("Time's up! Press NEW GAME to try again.");
         }
     }, 100);
 }
@@ -214,11 +254,28 @@ keys.forEach(key => {
 restart.addEventListener("click", newGame);
 
 document.addEventListener("keydown", e => {
-    if (e.key.toLowerCase() === "r") {
+    const key = e.key.toLowerCase();
+
+    if (key === "r") {
         newGame();
+        return;
+    }
+
+    const directions = {
+        w: [-1, 0], arrowup: [-1, 0],
+        s: [1, 0], arrowdown: [1, 0],
+        a: [0, -1], arrowleft: [0, -1],
+        d: [0, 1], arrowright: [0, 1]
+    };
+
+    if (directions[key]) {
+        e.preventDefault();
+        moveSelection(...directions[key]);
+        return;
     }
 
     if (/^[1-5]$/.test(e.key)) {
+        e.preventDefault();
         chooseNumber(Number(e.key));
     }
 });
